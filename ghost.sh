@@ -11,8 +11,8 @@
 #    
 #    <UDF name="website" label="Site URL" default=example.com/>i
 ##
-apt-get -o Acquire::ForceIPv4=true update
-apt-get -o Acquire::ForceIPv4=true install nginx zip build-essential nodejs npm
+yes | apt-get -o Acquire::ForceIPv4=true update
+yes | apt-get -o Acquire::ForceIPv4=true install nginx zip build-essential nodejs npm
 
 touch /etc/nginx/sites-available/ghost.conf
 
@@ -37,7 +37,8 @@ usermod -s /usr/sbin/nologin ghost
 cd /srv/
 wget https://ghost.org/zip/ghost-latest.zip
 unzip ghost-latest.zip -d ghost
-rm ghost-latest.zip
+rm ghost-latest.zipi
+
 cd /srv/ghost
 sudo ln -s "$(which nodejs)" /usr/bin/node
 su -c "cd /srv/ghost/; npm install --production" ghost
@@ -45,19 +46,10 @@ sed 's/my-ghost-blog.com/139.162.166.180/g' /srv/ghost/config.example.js  > /srv
 #sed 's/my-ghost-blog.com/$website/g' config.example.js  > config.js
 chown -R ghost:ghost /srv/ghost/
 
-su -c "npm start production" ghost
-
-
-
-
-
-
-
-
-
-
-
-
+#su -c "npm start production" ghost
+su -c "cd /srv/ghost; npm install forever" ghost
+echo "export PATH=/srv/ghost/node_modules/forever/bin:$PATH" >> ~/.bashrc
+su -c "NODE_ENV=production /srv/ghost/node_modules/forever/bin/forever start index.js" ghost
 
 
 

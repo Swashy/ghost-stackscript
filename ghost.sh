@@ -41,9 +41,12 @@ unzip ghost-latest.zip -d ghost
 chown -R ghost:ghost /srv/ghost/
 rm ghost-latest.zip
 cd /srv/ghost
+sudo ln -s "$(which nodejs)" /usr/bin/node
 su -c "npm install --production" ghost
 
-sed 's/my-ghost-blog.com/derp.com/g' config.example.js  > config.js
+
+
+sed 's/my-ghost-blog.com/$website/g' config.example.js  > config.js
 su -c "npm start production" ghost
 
 

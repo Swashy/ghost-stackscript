@@ -7,6 +7,8 @@
 #    Author: Roland MacDavid <roland.macdavid@gmail.com>
 #    Version: 0.1
 #
+#  This stackscript is a trashy hack to get Ghost, a javascript blogging platform installed on Ubuntu 16.04.
+#
 #StackScript User-Defined Variables (UDF):
 #    
 #    <UDF name="website" label="Site URL" default=example.com/>i
@@ -35,10 +37,13 @@ mkdir -p /home/ghost
 chown -R ghost:ghost /home/ghost
 cd /srv/
 wget https://ghost.org/zip/ghost-latest.zip
-su -c "unzip ghost-latest.zip -d ghost" ghost
+#runing stuff as proxy from root because we don't want to leave root.
+unzip ghost-latest.zip -d ghost
 rm ghost-latest.zip
+chown -R ghost:ghost /srv/ghost/
 
 cd /srv/ghost
+#current bug where npm fails to find nodejs. symlinking the name fixes it
 sudo ln -s "$(which nodejs)" /usr/bin/node
 su -c "cd /srv/ghost/; npm install --production" ghost
 sed 's/my-ghost-blog.com/139.162.166.180/g' /srv/ghost/config.example.js  > /srv/ghost/config.js
@@ -50,9 +55,3 @@ su -c "cd /srv/ghost; npm install forever" ghost
 echo "export PATH=/srv/ghost/node_modules/forever/bin:$PATH" >> ~/.bashrc
 su -c "NODE_ENV=production /srv/ghost/node_modules/forever/bin/forever start index.js" ghost
 usermod -s /usr/sbin/nologin ghost
-
-
-
-
-
-

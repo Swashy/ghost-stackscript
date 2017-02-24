@@ -38,8 +38,6 @@ sed -i.bak '/default_server/d' /etc/nginx/sites-available/default
 #Reference http://wiki.bash-hackers.org/scripting/debuggingtips#use_shell_debug_output
 set -x
 
-systemctl start nginx
-systemctl enable nginx
 mkdir -p /srv/ghost/
 useradd ghost
 mkdir -p /home/ghost
@@ -56,7 +54,7 @@ cd /srv/ghost
 sudo ln -s "$(which nodejs)" /usr/bin/node
 su -c "cd /srv/ghost/; npm install --production" ghost
 sed -i.bak "s/my-ghost-blog.com/$ipaddress/g" /srv/ghost/config.example.js
-cp /srv/ghost/config.example.js /srv/ghost/config.js
+cp /srv/ghost/config.example.js /srv`/ghost/config.js
 #sed 's/my-ghost-blog.com/$website/g' /srv/ghost/config.example.js  > /srv/ghost/config.js
 chown -R ghost:ghost /srv/ghost/
 
@@ -65,9 +63,11 @@ su -c "cd /srv/ghost; npm install forever" ghost
 echo "export PATH=/srv/ghost/node_modules/forever/bin:$PATH" >> ~/.bashrc
 source ~/.bashrc
 su -c "cd /srv/ghost; NODE_ENV=production /srv/ghost/node_modules/forever/bin/forever start index.js" ghost
+set +x
 usermod -s /usr/sbin/nologin ghost
 ipaddress=$(curl ipv4.icanhazip.com)
-set +x
+systemctl start nginx
+systemctl enable nginx
 echo ""
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 echo "Ghost installation complete! You may now visit your IP or domain if /

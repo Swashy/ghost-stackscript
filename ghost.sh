@@ -22,7 +22,7 @@ touch /etc/nginx/sites-available/ghost.conf
 echo -e "server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name \$website www.\$website;
+    server_name _;
 
     location / {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;

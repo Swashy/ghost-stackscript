@@ -27,17 +27,16 @@ echo "server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_pass http://127.0.0.1:2368;
     }
-}" > /etc/nginx/ghost.conf
+}" > /etc/nginx/sites-available/ghost.conf
 systemctl start nginx
 mkdir -p /srv/ghost/
 useradd ghost
 mkdir -p /home/ghost
 chown -R ghost:ghost /home/ghost
-usermod -s /usr/sbin/nologin ghost
 cd /srv/
 wget https://ghost.org/zip/ghost-latest.zip
-unzip ghost-latest.zip -d ghost
-rm ghost-latest.zipi
+su -c "unzip ghost-latest.zip -d ghost" ghost
+rm ghost-latest.zip
 
 cd /srv/ghost
 sudo ln -s "$(which nodejs)" /usr/bin/node
@@ -50,7 +49,7 @@ chown -R ghost:ghost /srv/ghost/
 su -c "cd /srv/ghost; npm install forever" ghost
 echo "export PATH=/srv/ghost/node_modules/forever/bin:$PATH" >> ~/.bashrc
 su -c "NODE_ENV=production /srv/ghost/node_modules/forever/bin/forever start index.js" ghost
-
+usermod -s /usr/sbin/nologin ghost
 
 
 

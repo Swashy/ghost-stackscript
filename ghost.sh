@@ -8,29 +8,38 @@
 #    Version: 0.1
 #
 #  This stackscript is a trashy hack to get Ghost, a javascript blogging platform installed on Ubuntu 16.04.
-#
+#  Reference guide: https://www.vultr.com/docs/how-to-deploy-ghost-on-ubuntu-16-04
 #StackScript User-Defined Variables (UDF):
 #    
 #    <UDF name="website" label="Site URL" default=example.com/>i
 ##
+# Force IPv4 because Ubuntu has a security repo with IPv6 that's been broken for a few years
 yes | apt-get -o Acquire::ForceIPv4=true update
-yes | apt-get -o Acquire::ForceIPv4=true install nginx zip build-essential nodejs npm
+yes | apt-get -o Acquire::ForceIPv4=true install vim nginx zip build-essential nodejs npm
 
 touch /etc/nginx/sites-available/ghost.conf
 
-echo "server {
+echo -e "server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name $website www.$website;
+    server_name \$website www.\$website;
 
     location / {
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_pass http://127.0.0.1:2368;
     }
 }" > /etc/nginx/sites-available/ghost.conf
+ln -s /etc/nginx/sites-available/ghost.conf /etc/nginx/sites-enabled/ghost.conf
+sed -i.bak '/default_server/d' /etc/nginx/sites-available/default > /etc/nginx/sites-available/default
+
+#Set xtrace output for debugging and so we can see commands as they're running in Lish
+#Reference http://wiki.bash-hackers.org/scripting/debuggingtips#use_shell_debug_output
+set -x
+
 systemctl start nginx
+systemctl enable nginx
 mkdir -p /srv/ghost/
 useradd ghost
 mkdir -p /home/ghost

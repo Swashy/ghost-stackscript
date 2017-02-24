@@ -54,8 +54,8 @@ cd /srv/ghost
 sudo ln -s "$(which nodejs)" /usr/bin/node
 su -c "cd /srv/ghost/; npm install --production" ghost
 sed -i.bak "s/my-ghost-blog.com/$ipaddress/g" /srv/ghost/config.example.js
-cp /srv/ghost/config.example.js /srv`/ghost/config.js
-#sed 's/my-ghost-blog.com/$website/g' /srv/ghost/config.example.js  > /srv/ghost/config.js
+#sed "s/my-ghost-blog.com/$website/g" /srv/ghost/config.example.js
+cp /srv/ghost/config.example.js /srv/ghost/config.js
 chown -R ghost:ghost /srv/ghost/
 
 #su -c "npm start production" ghost

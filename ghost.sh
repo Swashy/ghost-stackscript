@@ -9,7 +9,7 @@
 #  This stackscript is a trashy hack to get Ghost, a javascript blogging platform installed on Ubuntu 16.04.
 #  Reference guide: https://www.vultr.com/docs/how-to-deploy-ghost-on-ubuntu-16-04
 #StackScript User-Defined Variables (UDF):
-#    
+#
 #<UDF name="website" label="Site URL" default="example.com" />
 #WEBSITE=
 #<UDF name="pubkey" Label="Enter your public key here" default="">
@@ -19,12 +19,23 @@
 yes | apt-get -o Acquire::ForceIPv4=true update
 yes | apt-get -o Acquire::ForceIPv4=true install vim nginx zip build-essential nodejs npm
 
-if [ -z "$PUBKEY" ];
+set -x
+
+#If $PUBKEY is empty, then...
+if [ -z "$PUBKEY" ] || [ -n "$PUBKEY" ] || [ ! "$PUBKEY" ]; then
+  echo "setting pubkey and disabling password auth..."
   mkdir -p /root/.ssh/
   touch /root/.ssh/authorized_keys
   echo "$PUBKEY" >> /root/.ssh/authorized_keys
   sed -i.bak "/PasswordAuthentication/ s/yes/no/" /etc/ssh/sshd_config
+  sed -i.bak "/PasswordAuthentication/ s/#//" /etc/ssh/sshd_config
   systemctl restart sshd
+else
+  #My ssh_config file tries key auth first in 7 different ways.
+  #If there is no pubkey, then passwordauth fails for me.
+  echo "MaxAuthTries 7" >> /etc/ssh/sshd_config
+  systemctl restart sshd
+fi
 
 touch /etc/nginx/sites-available/ghost.conf
 export ipaddress=$(curl ipv4.icanhazip.com)
@@ -46,7 +57,6 @@ sed -i.bak '/default_server/d' /etc/nginx/sites-available/default
 
 #Set xtrace output for debugging and so we can see commands as they're running in Lish
 #Reference http://wiki.bash-hackers.org/scripting/debuggingtips#use_shell_debug_output
-set -x
 
 mkdir -p /srv/ghost/
 useradd ghost
@@ -64,7 +74,7 @@ cd /srv/ghost
 sudo ln -s "$(which nodejs)" /usr/bin/node
 su -c "cd /srv/ghost/; npm install --production" ghost
 sed -i.bak "s/my-ghost-blog.com/$ipaddress/g" /srv/ghost/config.example.js
-#sed "s/my-ghost-blog.com/$WEBSITE/g" /srv/ghost/config.example.js
+#sed "s/my-ghost-blog.com/$website/g" /srv/ghost/config.example.js
 cp /srv/ghost/config.example.js /srv/ghost/config.js
 chown -R ghost:ghost /srv/ghost/
 

@@ -10,11 +10,21 @@
 #  Reference guide: https://www.vultr.com/docs/how-to-deploy-ghost-on-ubuntu-16-04
 #StackScript User-Defined Variables (UDF):
 #    
-#    <UDF name="website" label="Site URL" default="example.com" />
+#<UDF name="website" label="Site URL" default="example.com" />
+#WEBSITE=
+#<UDF name="pubkey" Label="Enter your public key here" default="">
+#PUBKEY=
 ##
 # Force IPv4 because Ubuntu has a security repo with IPv6 that's been broken for a few years
 yes | apt-get -o Acquire::ForceIPv4=true update
 yes | apt-get -o Acquire::ForceIPv4=true install vim nginx zip build-essential nodejs npm
+
+if [ -z "$PUBKEY" ];
+  mkdir -p /root/.ssh/
+  touch /root/.ssh/authorized_keys
+  echo "$PUBKEY" >> /root/.ssh/authorized_keys
+  sed -i.bak "/PasswordAuthentication/ s/yes/no/" /etc/ssh/sshd_config
+  systemctl restart sshd
 
 touch /etc/nginx/sites-available/ghost.conf
 export ipaddress=$(curl ipv4.icanhazip.com)
@@ -54,7 +64,7 @@ cd /srv/ghost
 sudo ln -s "$(which nodejs)" /usr/bin/node
 su -c "cd /srv/ghost/; npm install --production" ghost
 sed -i.bak "s/my-ghost-blog.com/$ipaddress/g" /srv/ghost/config.example.js
-#sed "s/my-ghost-blog.com/$website/g" /srv/ghost/config.example.js
+#sed "s/my-ghost-blog.com/$WEBSITE/g" /srv/ghost/config.example.js
 cp /srv/ghost/config.example.js /srv/ghost/config.js
 chown -R ghost:ghost /srv/ghost/
 
@@ -66,8 +76,11 @@ su -c "cd /srv/ghost; NODE_ENV=production /srv/ghost/node_modules/forever/bin/fo
 set +x
 usermod -s /usr/sbin/nologin ghost
 ipaddress=$(curl ipv4.icanhazip.com)
-systemctl start nginx
+sleep 10
 systemctl enable nginx
+systemctl start nginx
+sleep 5
+systemctl restart nginx
 echo ""
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 echo "Ghost installation complete! You may now visit your IP or domain if /

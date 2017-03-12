@@ -97,7 +97,7 @@ if [ $SSL == "Yes" ]; then
 
   echo 'deb http://ftp.debian.org/debian jessie-backports main' | tee /etc/apt/sources.list.d/backports.list
   apt-get update
-  yes | apt-get install certbot -t jessie-backports -y
+  yes | apt-get install certbot -t jessie-backports --allow-unauthenticated -y
   certbot --dry-run -m $EMAIL --agree-tos certonly -a webroot --webroot-path=/srv/ghost/letsencrypt -d $WEBSITE -d www.$WEBSITE
 else
   echo -e "server {

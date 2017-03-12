@@ -33,7 +33,7 @@ yes | apt-get -o Acquire::ForceIPv4=true install vim nginx zip build-essential n
 set -x
 
 #If $PUBKEY is empty, then...
-if [ -z "$PUBKEY" ] || [ -n "$PUBKEY" ] || [ ! "$PUBKEY" ]; then
+if [ -z "$PUBKEY" ]; then
   #My ssh_config file tries key auth first in 7 different ways.
   #If there is no pubkey, then passwordauth fails for me.
   echo "MaxAuthTries 7" >> /etc/ssh/sshd_config
@@ -51,10 +51,10 @@ fi
 touch /etc/nginx/sites-available/ghost.conf
 export ipaddress=$(curl ipv4.icanhazip.com)
 
-if [ $SSL == "Yes"]; then
+if [ $SSL == "Yes" ]; then
     echo -e "server {
     listen 443 default_server;
-    listen [::]:80 default_server;
+    listen [::]:443 default_server;
     server_name _;
     location ~ /.well-known {
       root /srv/ghost/letsencrypt;
@@ -118,12 +118,13 @@ fi
 
 #Set xtrace output for debugging and so we can see commands as they're running in Lish
 #Reference http://wiki.bash-hackers.org/scripting/debuggingtips#use_shell_debug_output
-
+mkdir -p /srv/ghost/
+useradd ghost
 mkdir -p /home/ghost
 chown -R ghost:ghost /home/ghost
 cd /srv/
 wget https://ghost.org/zip/ghost-latest.zip
-#runing stuff as proxy from root because we don't want to leave root.
+#running stuff as proxy from root because we don't want to leave root.
 unzip ghost-latest.zip -d ghost
 rm ghost-latest.zip
 chown -R ghost:ghost /srv/ghost/

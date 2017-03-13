@@ -49,17 +49,30 @@ else
 fi
 
 touch /etc/nginx/sites-available/ghost.conf
-export ipaddress=$(curl ipv4.icanhazip.com)
+touch /etc/nginx/sites-available/ssl-ghost.conf
+ln -s /etc/nginx/sites-available/ghost.conf /etc/nginx/sites-enabled/ghost.conf
+sed -i.bak '/default_server/d' /etc/nginx/sites-available/default
 
-if [ $SSL == "Yes" ]; then
-    echo -e "server {
-    listen 443 default_server;
-    listen [::]:443 default_server;
-    server_name _;
+echo -e "server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name $WEBSITE www.$WEBSITE;
     location ~ /.well-known {
       root /srv/ghost/letsencrypt;
       allow all;
     }
+    location / {
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_pass http://127.0.0.1:2368;
+    }
+}" > /etc/nginx/sites-available/ghost.conf
+echo -e "server {
+    listen 443 default_server;
+    listen [::]:443 default_server;
+    server_name $WEBSITE www.$WEBSITE;
+    
     ssl_certificate     /etc/letsencrypt/live/$WEBSITE/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/$WEBSITE/privkey.pem;
     ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
@@ -83,36 +96,27 @@ if [ $SSL == "Yes" ]; then
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_pass http://127.0.0.1:2368;
     }
-}" > /etc/nginx/sites-available/ghost.conf
+}" > /etc/nginx/sites-available/ssl-ghost.conf
 
-  ln -s /etc/nginx/sites-available/ghost.conf /etc/nginx/sites-enabled/ghost.conf
-  sed -i.bak '/default_server/d' /etc/nginx/sites-available/default
 
-  ##### Let's Encrypt Certificate generation #######
+export ipaddress=$(curl ipv4.icanhazip.com)
+
+#If user has chosen HTTPS because they have their domain resolving, then generate and setup
+#an SSL certificate.
+if [ $SSL == "Yes" ]; then
+  ln -s /etc/nginx/sites-available/ssl-ghost.conf /etc/nginx/sites-enabled/ssl-ghost.conf
   openssl dhparam -dsaparam -out /etc/ssl/certs/dhparam.pem 2048
   mkdir -p /srv/ghost/
   mkdir /srv/ghost/letsencrypt
   useradd ghost
   chown -R ghost:ghost /srv/ghost/
-
   echo 'deb http://ftp.debian.org/debian jessie-backports main' | tee /etc/apt/sources.list.d/backports.list
-  apt-get update
+  apt-get update -y
   yes | apt-get install certbot -t jessie-backports --allow-unauthenticated -y
   certbot --dry-run -m $EMAIL --agree-tos certonly -a webroot --webroot-path=/srv/ghost/letsencrypt -d $WEBSITE -d www.$WEBSITE
 else
-  echo -e "server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    location / {
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header Host \$http_host;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_pass http://127.0.0.1:2368;
-    }
-}" > /etc/nginx/sites-available/ghost.conf
-  ln -s /etc/nginx/sites-available/ghost.conf /etc/nginx/sites-enabled/ghost.conf
-  sed -i.bak '/default_server/d' /etc/nginx/sites-available/default
+#If not, then setup just regular old crappy HTTP
+  
 fi
 
 

@@ -78,7 +78,7 @@ echo -e "server {
       root /srv/ghost/letsencrypt;
     }
     location / {
-      return 301 https://$host$request_uri;
+      return 301 https://\$host\$request_uri;
     }
 }" > /etc/nginx/sites-available/redirect-ghost.conf
 
@@ -92,12 +92,9 @@ echo -e "server {
     ssl_certificate_key /etc/letsencrypt/live/$WEBSITE/privkey.pem;
     ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
     ssl_prefer_server_ciphers on;
-    ssl_ciphers "EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH";
+    ssl_ciphers \"EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH\";
     ssl_ecdh_curve secp384r1; # Requires nginx >= 1.1.0
     ssl_session_cache shared:SSL:10m;
-    ssl_session_tickets off; # Requires nginx >= 1.5.9
-    ssl_stapling on; # Requires nginx >= 1.3.7
-    ssl_stapling_verify on; # Requires nginx => 1.3.7
     resolver 8.8.8.8 8.8.4.4 valid=300s;
     resolver_timeout 5s;
     add_header Strict-Transport-Security \"max-age=63072000; includeSubdomains\";
@@ -162,8 +159,9 @@ chown -R ghost:ghost /srv/ghost/
 cd /srv/ghost
 #current bug where npm fails to find nodejs. symlinking the name fixes it
 sudo ln -s "$(which nodejs)" /usr/bin/node
+echo "Installing ghost through NPM, please standby...."
 su -c "cd /srv/ghost/; npm install --production" ghost
-sed -i.bak "s/my-ghost-blog.com/$ipaddress/g" /srv/ghost/config.example.js
+sed -i.bak "s/my-ghost-blog.com/$WEBSITE/g" /srv/ghost/config.example.js
 #sed "s/my-ghost-blog.com/$website/g" /srv/ghost/config.example.js
 cp /srv/ghost/config.example.js /srv/ghost/config.js
 chown -R ghost:ghost /srv/ghost/
@@ -174,7 +172,6 @@ echo "export PATH=/srv/ghost/node_modules/forever/bin:$PATH" >> ~/.bashrc
 source ~/.bashrc
 su -c "cd /srv/ghost; NODE_ENV=production /srv/ghost/node_modules/forever/bin/forever start index.js" ghost
 set +x
-usermod -s /usr/sbin/nologin ghost
 export ipaddress=$(curl ipv4.icanhazip.com)
 sleep 10
 systemctl restart nginx

@@ -45,6 +45,7 @@ else
   echo "$PUBKEY" >> /root/.ssh/authorized_keys
   sed -i.bak "/PasswordAuthentication/ s/yes/no/" /etc/ssh/sshd_config
   sed -i.bak "/#PasswordAuthentication/ s/#PasswordAuthentication/PasswordAuthentication/" /etc/ssh/sshd_config
+  echo "MaxAuthTries 7" >> /etc/ssh/sshd_config
   systemctl restart sshd
 fi
 
@@ -98,6 +99,29 @@ echo -e "server {
     }
 }" > /etc/nginx/sites-available/ssl-ghost.conf
 
+#If user has chosen HTTPS because they have their domain resolving, then generate and setup
+#an SSL certificate.
+if [ $SSL == "Yes" ]; then
+  systemctl start nginx
+  openssl dhparam -dsaparam -out /etc/ssl/certs/dhparam.pem 2048
+  mkdir -p /srv/ghost/
+  mkdir /srv/ghost/letsencrypt
+  useradd ghost
+  chown -R ghost:ghost /srv/ghost/
+  echo 'deb http://ftp.debian.org/debian jessie-backports main' | tee /etc/apt/sources.list.d/backports.list
+  #These commands are needed for Debian 8, not Ubuntu 16.04
+  #apt-get update -y
+  #yes | apt-get install certbot -t jessie-backports --allow-unauthenticated -y
+  apt install -y letsencrypt
+  letsencrypt --dry-run -m $EMAIL --agree-tos certonly -a webroot --webroot-path=/srv/ghost/letsencrypt -d $WEBSITE -d www.$WEBSITE
+  sleep 10 #Sleep to wait for cert generation
+  #If this directory exists, that means we were successful and we can activate the SSL conf.
+  if [ -d "/etc/letsencrypt/live/" ]; then
+    ln -s /etc/nginx/sites-available/ssl-ghost.conf /etc/nginx/sites-enabled/ssl-ghost.conf
+  fi
+#else
+#If not, then setup just regular old crappy HTTP (is anything actually needed here?)
+fi
 
 #Set xtrace output for debugging and so we can see commands as they're running in Lish
 #Reference http://wiki.bash-hackers.org/scripting/debuggingtips#use_shell_debug_output

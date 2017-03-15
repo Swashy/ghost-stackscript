@@ -28,7 +28,7 @@ if [ -z "$PROPERVERSION" ]; then
 fi
 
 yes | apt-get -o Acquire::ForceIPv4=true update
-yes | apt-get -o Acquire::ForceIPv4=true install vim nginx zip build-essential nodejs npm
+yes | apt-get -o Acquire::ForceIPv4=true install vim nginx zip build-essential nodejs npm letsencrypt
 
 set -x
 
@@ -51,16 +51,14 @@ fi
 
 touch /etc/nginx/sites-available/ghost.conf
 touch /etc/nginx/sites-available/ssl-ghost.conf
-ln -s /etc/nginx/sites-available/ghost.conf /etc/nginx/sites-enabled/ghost.conf
-sed -i.bak '/default_server/d' /etc/nginx/sites-available/default
 
 echo -e "server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name $WEBSITE www.$WEBSITE;
-    location ~ /.well-known {
+    location ~ /.well-known/acme-challenge/ {
+      default_type "text/plain";
       root /srv/ghost/letsencrypt;
-      allow all;
     }
     location / {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -69,6 +67,22 @@ echo -e "server {
         proxy_pass http://127.0.0.1:2368;
     }
 }" > /etc/nginx/sites-available/ghost.conf
+
+
+echo -e "server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name $WEBSITE www.$WEBSITE;
+    location ~ /.well-known/acme-challenge/ {
+      default_type \"text/plain\";
+      root /srv/ghost/letsencrypt;
+    }
+    location / {
+      return 301 https://$host$request_uri;
+    }
+}" > /etc/nginx/sites-available/redirect-ghost.conf
+
+
 echo -e "server {
     listen 443 default_server;
     listen [::]:443 default_server;
@@ -99,25 +113,34 @@ echo -e "server {
     }
 }" > /etc/nginx/sites-available/ssl-ghost.conf
 
+ln -s /etc/nginx/sites-available/ghost.conf /etc/nginx/sites-enabled/ghost.conf
+sed -i.bak '/default_server/d' /etc/nginx/sites-available/default
+rm /etc/nginx/sites-enabled/default
+systemctl enable nginx
+systemctl start nginx
+
 #If user has chosen HTTPS because they have their domain resolving, then generate and setup
 #an SSL certificate.
 if [ $SSL == "Yes" ]; then
-  systemctl start nginx
   openssl dhparam -dsaparam -out /etc/ssl/certs/dhparam.pem 2048
   mkdir -p /srv/ghost/
   mkdir /srv/ghost/letsencrypt
   useradd ghost
   chown -R ghost:ghost /srv/ghost/
-  echo 'deb http://ftp.debian.org/debian jessie-backports main' | tee /etc/apt/sources.list.d/backports.list
   #These commands are needed for Debian 8, not Ubuntu 16.04
+  #echo 'deb http://ftp.debian.org/debian jessie-backports main' | tee /etc/apt/sources.list.d/backports.list
   #apt-get update -y
   #yes | apt-get install certbot -t jessie-backports --allow-unauthenticated -y
-  apt install -y letsencrypt
-  letsencrypt --dry-run -m $EMAIL --agree-tos certonly -a webroot --webroot-path=/srv/ghost/letsencrypt -d $WEBSITE -d www.$WEBSITE
-  sleep 10 #Sleep to wait for cert generation
+  systemctl restart nginx
+  sleep 10 
+    letsencrypt -n -m $EMAIL --agree-tos certonly -a webroot --webroot-path=/srv/ghost/letsencrypt -d $WEBSITE -d www.$WEBSITE
+  #Sleep to wait for cert generation
   #If this directory exists, that means we were successful and we can activate the SSL conf.
   if [ -d "/etc/letsencrypt/live/" ]; then
     ln -s /etc/nginx/sites-available/ssl-ghost.conf /etc/nginx/sites-enabled/ssl-ghost.conf
+    rm /etc/nginx/sites-enabled/ghost.conf
+    ln -s /etc/nginx/sites-available/redirect-ghost.conf /etc/nginx/sites-enabled/redirect-ghost.conf
+    systemctl restart nginx
   fi
 #else
 #If not, then setup just regular old crappy HTTP (is anything actually needed here?)
@@ -154,9 +177,6 @@ set +x
 usermod -s /usr/sbin/nologin ghost
 export ipaddress=$(curl ipv4.icanhazip.com)
 sleep 10
-systemctl enable nginx
-systemctl start nginx
-sleep 5
 systemctl restart nginx
 echo ""
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="

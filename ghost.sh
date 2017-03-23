@@ -52,7 +52,11 @@ fi
 touch /etc/nginx/sites-available/ghost.conf
 touch /etc/nginx/sites-available/ssl-ghost.conf
 
-echo -e "server {
+#Note that in this "here document", substitution is enabled by *not*
+#quoting file, so we need to escape any dollar signes. We want $WEBSITE
+#being substituted, but not $http_host... 
+cat > /etc/nginx/sites-available/ghost.conf<<__FILE__
+server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name $WEBSITE www.$WEBSITE;
@@ -66,38 +70,40 @@ echo -e "server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_pass http://127.0.0.1:2368;
     }
-}" > /etc/nginx/sites-available/ghost.conf
+}
+__FILE__
 
-
-echo -e "server {
+cat > /etc/nginx/sites-available/redirect-ghost.conf<<__FILE__
+server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name $WEBSITE www.$WEBSITE;
     location ~ /.well-known/acme-challenge/ {
-      default_type \"text/plain\";
+      default_type "text/plain";
       root /srv/ghost/letsencrypt;
     }
     location / {
       return 301 https://\$host\$request_uri;
     }
 }" > /etc/nginx/sites-available/redirect-ghost.conf
+__FILE__
 
-
-echo -e "server {
-    listen 443 default_server;
-    listen [::]:443 default_server;
+cat > /etc/nginx/sites-available/ssl-ghost.conf<<__FILE__
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
     server_name $WEBSITE www.$WEBSITE;
     
     ssl_certificate     /etc/letsencrypt/live/$WEBSITE/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/$WEBSITE/privkey.pem;
     ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
     ssl_prefer_server_ciphers on;
-    ssl_ciphers \"EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH\";
+    ssl_ciphers "EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH";
     ssl_ecdh_curve secp384r1; # Requires nginx >= 1.1.0
     ssl_session_cache shared:SSL:10m;
     resolver 8.8.8.8 8.8.4.4 valid=300s;
     resolver_timeout 5s;
-    add_header Strict-Transport-Security \"max-age=63072000; includeSubdomains\";
+    add_header Strict-Transport-Security "max-age=63072000; includeSubdomains";
     add_header X-Frame-Options DENY;
     add_header X-Content-Type-Options nosniff;
     ssl_dhparam /etc/ssl/certs/dhparam.pem;
@@ -108,7 +114,8 @@ echo -e "server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_pass http://127.0.0.1:2368;
     }
-}" > /etc/nginx/sites-available/ssl-ghost.conf
+}
+__FILE__
 
 ln -s /etc/nginx/sites-available/ghost.conf /etc/nginx/sites-enabled/ghost.conf
 sed -i.bak '/default_server/d' /etc/nginx/sites-available/default
@@ -130,7 +137,8 @@ if [ $SSL == "Yes" ]; then
   #yes | apt-get install certbot -t jessie-backports --allow-unauthenticated -y
   systemctl restart nginx
   sleep 10 
-    letsencrypt -n -m $EMAIL --agree-tos certonly -a webroot --webroot-path=/srv/ghost/letsencrypt -d $WEBSITE -d www.$WEBSITE
+  echo "Getting the certificate, this can take a few minutes if your domain is new...."
+  letsencrypt -n -m $EMAIL --agree-tos certonly -a webroot --webroot-path=/srv/ghost/letsencrypt -d $WEBSITE -d www.$WEBSITE
   #Sleep to wait for cert generation
   #If this directory exists, that means we were successful and we can activate the SSL conf.
   if [ -d "/etc/letsencrypt/live/" ]; then
@@ -161,9 +169,14 @@ cd /srv/ghost
 sudo ln -s "$(which nodejs)" /usr/bin/node
 echo "Installing ghost through NPM, please standby...."
 su -c "cd /srv/ghost/; npm install --production" ghost
-sed -i.bak "s/my-ghost-blog.com/$WEBSITE/g" /srv/ghost/config.example.js
-#sed "s/my-ghost-blog.com/$website/g" /srv/ghost/config.example.js
+
 cp /srv/ghost/config.example.js /srv/ghost/config.js
+if [ $SSL == "Yes" ]; then
+  sed -i.bak "s/http:\/\/my-ghost-blog.com/https:\/\/$WEBSITE/g" /srv/ghost/config.example.js
+else
+  sed -i.bak "s/my-ghost-blog.com/$WEBSITE/g" /srv/ghost/config.example.js
+fi
+
 chown -R ghost:ghost /srv/ghost/
 
 #su -c "npm start production" ghost
@@ -176,9 +189,35 @@ export ipaddress=$(curl ipv4.icanhazip.com)
 sleep 10
 systemctl restart nginx
 echo ""
-echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-echo "Ghost installation complete! You may now visit your IP or domain if /
-you've already configured it to get started. Admin interface is going to be/
-http://$ipaddress/ghost/ or https://$WEBSITE if you used a resolving domain/
- with HTTPS for this script."
-echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+if [ -d "/etc/letsencrypt/live/" ]; then
+cat <<__MESSAGE__
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+Ghost installation complete! You may now visit your IP or domain if 
+you've already configured it to get started. Admin interface is going to be
+http://$ipaddress/ghost/ or https://$WEBSITE/ghost if you used a resolving domain
+ with HTTPS for this script.
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__MESSAGE__
+else
+  cat <<__MESSAGE__
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+echo "ERROR!: Let's Encrypt generation has FAILED!!! This may have happened
+if your domain's DNS records haven't existed for long enough yet, and Lets Encrypt's
+server's couldn't resolve it. In that case, wait 1-12 hours and then run this command:
+
+letsencrypt -n -m $EMAIL --agree-tos certonly -a webroot --webroot-path=/srv/ghost/letsencrypt -d $WEBSITE -d www.$WEBSITE
+
+If successful, restart your Linode and you should be good. Visit your admin page:
+https://$WEBSITE/ghost , to confirm it's is working.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+__MESSAGE__
+fi
+if [ $SSL == "No" ]; then
+  cat <<__MESSAGE__
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+Ghost installation complete! You may now visit your IP or domain if 
+you've already configured it to get started. Admin interface is going to be:
+http://$ipaddress/ghost/ 
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+__MESSAGE__
+fi
